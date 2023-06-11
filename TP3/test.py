@@ -1,7 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy
 
-def golesToString(stringOfGoals,homeOrAway):
+def golesToString(stringOfGoals):
     '''
     Recibe un stings que contiene información de los goles de un partido y 
     devuelve una tupla con los valores correspondientes
@@ -13,7 +14,7 @@ def golesToString(stringOfGoals,homeOrAway):
         if number.isdigit(): 
             goals.append(int(number)) #apendeamos los numeros a la lista de goles
     
-    if len(stringOfGoals)>=4: #Si el string tiene longitud de 4 o mas, quiere decir que hubo penales
+    if '(' in stringOfGoals: #Si el string tiene un paréntesis, quiere decir que hubo penales
         pass
 
     else: #Si el strign tiene longitud menor a 4, quiere decir que no hubo penales, por lo que hay que agregar dos ceros a la lista de goles
@@ -21,8 +22,57 @@ def golesToString(stringOfGoals,homeOrAway):
         goals.append(0) 
         goals.insert(0,0)
 
-    if homeOrAway == 'home': return goals[0]+goals[1] 
-    if homeOrAway == 'away': return goals[2]+goals[3]
+    return goals[0],goals[1],goals[2],goals[3]
+
+def crearDiccionario(df):
+    dic = {}
+    for countryName in df['home_team']: #Recorremos la columna home_team y obtenemos el index con enumerate
+
+        #si el diccionario no esta creado, lo creamos
+        if countryName not in dic:
+            dic[countryName] = {'goals':0, 'points':[0], 'rank':0}
+
+        #sumamos todos los goles que hizo el país estando de local
+    return dic
+
+def sumarGoles(dic,df): # home_team away_team
+    countries= (df['home_team'].to_numpy() + df['away_team'].to_numpy()).tolist()
+
+    print(countries)
+    # for i in range(len(df)): #Recorremos la columna away_team y obtenemos el index con enumerate
+
+        # penalLocal,golLocal,golVisitante,penalVisitante = golesToString(goles)
+
+        # print(local,visitante,goles)
+
+        # #sumamos todos los goles que hizo el país estando de visitante
+        # dic[local]['goals'] = dic[local]['goals'] + penalLocal + golLocal
+
+        # dic[visitante]['goals'] = dic[visitante]['goals'] + golVisitante + penalVisitante
+
+def addRank(dic,df):
+    puesto = 1
+    for i in [-1,-2]:
+        
+        penalLocal,golLocal,golVisitante,penalVisitante = golesToString(df[['score']].iloc[i].to_string(header= False, index= False))
+        golesTotales = (golLocal + penalLocal) - (golVisitante + penalVisitante)
+
+        local = df[['home_team']].iloc[i,:].to_string(header= False, index= False)
+        visita = df[['away_team']].iloc[i,:].to_string(header= False, index= False)
+
+        if golesTotales>0: #quiere decir que gana el equipo local
+            dic[local]['rank'] = puesto #le asignamos el primer puesto
+            puesto += 1
+            dic[visita]['rank'] = puesto #le asignamos el segundo puesto
+            puesto += 1 #le sumamos una vez mas el valor para que el siguiente equipo que salga tercero tenga su ranking correspondeinte
+
+        else:
+            dic[visita]['rank'] = puesto #le asignamos el primer puesto
+            puesto += 1
+            dic[local]['rank'] = puesto #le asignamos el segundo puesto
+            puesto += 1 #le sumamos una vez mas el valor para que el siguiente equipo que salga tercero tenga su ranking correspondeinte
+
+    return dic
 
 def fileToDicc(fileRoute):
     '''
@@ -35,53 +85,38 @@ def fileToDicc(fileRoute):
     dic = {}
     fileDF = pd.read_csv(fileRoute, encoding='utf8') #Definimos el DataFrame
     
-    for index,countryName in enumerate(fileDF['home_team']): #Recorremos la columna home_team y obtenemos el index con enumerate
+    dic = crearDiccionario(fileDF)
+    addRank(dic,fileDF)
+    sumarGoles(dic,fileDF)
+
+
+    
+
+    for index,data in fileDF[['home_team','away_team']].iterrows():
+
+        penalLocal,golLocal,golVisitante,penalVisitante = golesToString(fileDF['score'].values[index]) #obtenemos los goles de la ilera de datos
+        golesTotales = (golLocal + penalLocal) - (golVisitante + penalVisitante) #obtenemos los goles totales del partido
+    
+        paisLocal = data[0]
+        paisVisita = data[1]
+
+        #dependiendo de quien gane, le appendeamos 3, 1 o 0 puntos
+        if len(dic[paisLocal]['points'])<4:
+            if golesTotales>0: #gana local
+                dic[paisLocal]['points'].append(dic[paisLocal]['points'][-1]+3)
+            if golesTotales ==0: #empatan
+                dic[paisLocal]['points'].append(dic[paisLocal]['points'][-1]+1)
+            if golesTotales<0: #pierden
+                dic[paisLocal]['points'].append(dic[paisLocal]['points'][-1])
+
+        if len(dic[paisVisita]['points'])<4:
+            if golesTotales<0: #gana visita
+                dic[paisVisita]['points'].append(dic[paisVisita]['points'][-1]+3)
+            if golesTotales ==0: #empatan
+                dic[paisVisita]['points'].append(dic[paisVisita]['points'][-1]+1)
+            if golesTotales>0: #pierden
+                dic[paisVisita]['points'].append(dic[paisVisita]['points'][-1])
         
-        #si el diccionario no esta creado, lo creamos
-        if countryName not in dic:
-            dic[countryName] = {'goals':0, 'points':[0], 'rank':0}
-
-        #agregamos el ranking segun como salieron en el mundial 2022
-        if countryName == 'Argentina': dic[countryName]['rank'] = 1
-        if countryName == 'France': dic[countryName]['rank'] = 2
-        if countryName == 'Croatia': dic[countryName]['rank'] = 3
-        if countryName == 'Morocco': dic[countryName]['rank'] = 4
-
-        #sumamos todos los goles que hizo el país estando de local
-        dic[countryName]['goals'] = dic[countryName]['goals'] + golesToString(fileDF['score'].values[index],'home')
-
-    for index,countryName in enumerate(fileDF['away_team']): #Recorremos la columna away_team y obtenemos el index con enumerate
-        
-        #sumamos todos los goles que hizo el país estando de visitante
-        dic[countryName]['goals'] = dic[countryName]['goals'] + golesToString(fileDF['score'].values[index],'away')
-        
-    for countryName in dic: #obtenemos todos los nombres de paises en el dicionario    
-         for index,data in fileDF[['home_team','away_team']].iterrows(): 
-            # Obtenemos un indice y una tupla: 63, (home_team: Argentina, away_team: France, Name: 63, dtype: object)
-            
-            #Si el pais esta en la fila entramos al bloque if
-            if countryName in data[0] and len(dic[countryName]['points'])<4: #si el equipo es local
-                golesTotales = golesToString(fileDF['score'].values[index],'home') - golesToString(fileDF['score'].values[index],'away')
-
-                if golesTotales>0: #Gana el local, suma 3
-                    dic[countryName]['points'].append(dic[countryName]['points'][-1] + 3 )
-
-                if golesTotales == 0: #Empatan los equipos, suman 1
-                    dic[countryName]['points'].append(dic[countryName]['points'][-1] + 1 )
-
-                elif len(dic[countryName]['points'])<4: #Gana visita, suma 0
-                    dic[countryName]['points'].append(dic[countryName]['points'][-1])
-
-            if countryName in data[1] and len(dic[countryName]['points'])<4: #si el equipo es visitante 
-                
-                if golesTotales<0: #Gana visita, suma 3
-                    dic[countryName]['points'].append(dic[countryName]['points'][-1] + 3 )
-
-                if golesTotales == 0: #Empatan los equipos, suman 1
-                    dic[countryName]['points'].append(dic[countryName]['points'][-1] + 1 )
-              
-                elif len(dic[countryName]['points'])<4: #Gana local, suma 0
-                    dic[countryName]['points'].append(dic[countryName]['points'][-1])
     return dic       
 
 def addGroupToDicc(fileRoute,dic):
@@ -131,6 +166,7 @@ def listasOrdenadas(dic,key,order = False):
     #desempaquetadas
     return zip(*sortedlist)
 
+
 def graficadorDeBarras (dic):
     '''
     Recibe el diciconario y grafica con barras los goles totales de cada equipo en orden ascendente.
@@ -144,12 +180,15 @@ def graficadorDeBarras (dic):
     plt.show()
 
 
+
 # faseGrupos =  pd.read_csv('TP3\group_stats.csv', encoding='utf8')
-# datosPartidos = pd.read_csv('TP3/data.csv', encoding='utf8')
+datosPartidos = pd.read_csv('TP3/data.csv', encoding='utf8')
 
 # faseGrupos[['group','team']]
 # print(datosPartidos[['match','home_team','away_team','score']].to_string())
 
 diccionarioPaises = fileToDicc('TP3/data.csv')
-addGroupToDicc('TP3\group_stats.csv',diccionarioPaises)
-graficadorDeBarras(diccionarioPaises)
+# addGroupToDicc('TP3\group_stats.csv',diccionarioPaises)
+# graficadorDeBarras(diccionarioPaises)
+
+
