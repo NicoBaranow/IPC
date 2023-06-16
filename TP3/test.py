@@ -1,6 +1,5 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy
 
 def golesToString(stringOfGoals):
     '''
@@ -36,19 +35,16 @@ def crearDiccionario(df):
     return dic
 
 def sumarGoles(dic,df): # home_team away_team
-    countries= (df['home_team'].to_numpy() + df['away_team'].to_numpy()).tolist()
 
-    print(countries)
-    # for i in range(len(df)): #Recorremos la columna away_team y obtenemos el index con enumerate
+    for index,data in df[['home_team','away_team', 'score']].iterrows():
 
-        # penalLocal,golLocal,golVisitante,penalVisitante = golesToString(goles)
+        local = data[0]
+        visitante = data[1]
 
-        # print(local,visitante,goles)
+        penalLocal,golLocal,golVisitante,penalVisitante = golesToString(data[2])
 
-        # #sumamos todos los goles que hizo el país estando de visitante
-        # dic[local]['goals'] = dic[local]['goals'] + penalLocal + golLocal
-
-        # dic[visitante]['goals'] = dic[visitante]['goals'] + golVisitante + penalVisitante
+        dic[local]['goals'] = dic[local]['goals'] + penalLocal + golLocal
+        dic[visitante]['goals'] = dic[visitante]['goals'] + golVisitante + penalVisitante    
 
 def addRank(dic,df):
     puesto = 1
@@ -74,27 +70,10 @@ def addRank(dic,df):
 
     return dic
 
-def fileToDicc(fileRoute):
-    '''
-    Recibe el nombre de un archivo y devuelve un diccionario con paises como clave y otros
-    diccionarios como valor.
+def faseDeGrupos(dic,df):
+    for index,data in df[['home_team','away_team']].iterrows():
 
-    teams = {'equipox': { 'goals': x, 'points': [p0, p1, p2, p3], 'rank':x }, 
-            'equipoy': { 'goals': y, 'points': [p0, p1, p2, p3], 'rank':0 }}
-    '''
-    dic = {}
-    fileDF = pd.read_csv(fileRoute, encoding='utf8') #Definimos el DataFrame
-    
-    dic = crearDiccionario(fileDF)
-    addRank(dic,fileDF)
-    sumarGoles(dic,fileDF)
-
-
-    
-
-    for index,data in fileDF[['home_team','away_team']].iterrows():
-
-        penalLocal,golLocal,golVisitante,penalVisitante = golesToString(fileDF['score'].values[index]) #obtenemos los goles de la ilera de datos
+        penalLocal,golLocal,golVisitante,penalVisitante = golesToString(df['score'].values[index]) #obtenemos los goles de la ilera de datos
         golesTotales = (golLocal + penalLocal) - (golVisitante + penalVisitante) #obtenemos los goles totales del partido
     
         paisLocal = data[0]
@@ -116,23 +95,38 @@ def fileToDicc(fileRoute):
                 dic[paisVisita]['points'].append(dic[paisVisita]['points'][-1]+1)
             if golesTotales>0: #pierden
                 dic[paisVisita]['points'].append(dic[paisVisita]['points'][-1])
-        
-    return dic       
 
-def addGroupToDicc(fileRoute,dic):
+def addGroupToDicc(dic,df):
     '''
     Agrega a cada diccionario de fileToDicc, el grupo al que pertenece al pais. Recibe 
     como parametro el nombre de un archivo que contenga la información de los grupos y
     el diccionario de fileToDicc.
     
     '''
-    #Creamos el dataframe con la ruta
-    fileDF = pd.read_csv(fileRoute, encoding='utf8')
-
     #iteramos sobre cada fila del dataframe, limitando a team y group
-    for index,data in fileDF[['team','group']].iterrows():
+    for index,data in df[['team','group']].iterrows():
         #asignamos el valor de cada grupo al pais correspondiente. data[0] = nombre de pais; data[1] = num de grupo
         dic[data[0]]['group'] = data[1]
+
+def fileToDicc(dataRoute, groupsRoute):
+    '''
+    Recibe el nombre de un archivo y devuelve un diccionario con paises como clave y otros
+    diccionarios como valor.
+
+    teams = {'equipox': { 'goals': x, 'points': [p0, p1, p2, p3], 'rank':x }, 
+            'equipoy': { 'goals': y, 'points': [p0, p1, p2, p3], 'rank':0 }}
+    '''
+    dic = {}
+    fileDF = pd.read_csv(dataRoute, encoding='utf8') 
+    groupsDF = pd.read_csv(groupsRoute, encoding='utf8')
+
+    dic = crearDiccionario(fileDF)
+    addRank(dic,fileDF)
+    sumarGoles(dic,fileDF)
+    faseDeGrupos(dic,fileDF)
+    addGroupToDicc(dic,groupsDF)
+
+    return dic
 
 def listasOrdenadas(dic,key,order = False):
     '''
@@ -160,12 +154,12 @@ def listasOrdenadas(dic,key,order = False):
     #a la tupla, y x[1] es el parametro que usamos para ordenar las tuplas dentro de la lista. 
     #esta funcion devuelve una nueva lista de tuplas. El parametro reverse define el orden creciente o decreciente
     sortedlist = sorted(listsSorted,key=lambda x: x[1],reverse = order)
-
     #retornamos la nueva lista creada. La funcion zip(iterable) con un * por delante, tiene el efecto contrario
     # a la funcion zip(iterable). Esto quiere decir que se retorna una tupla de dos listas que pueden ser
     #desempaquetadas
-    return zip(*sortedlist)
-
+    country, data = zip(*sortedlist)
+    
+    return list(country), list(data)
 
 def graficadorDeBarras (dic):
     '''
@@ -180,15 +174,4 @@ def graficadorDeBarras (dic):
     plt.show()
 
 
-
-# faseGrupos =  pd.read_csv('TP3\group_stats.csv', encoding='utf8')
-datosPartidos = pd.read_csv('TP3/data.csv', encoding='utf8')
-
-# faseGrupos[['group','team']]
-# print(datosPartidos[['match','home_team','away_team','score']].to_string())
-
-diccionarioPaises = fileToDicc('TP3/data.csv')
-# addGroupToDicc('TP3\group_stats.csv',diccionarioPaises)
-# graficadorDeBarras(diccionarioPaises)
-
-
+diccionarioPaises = fileToDicc('IPC\TPs-IPC\TP3\data.csv','IPC\TPs-IPC\TP3\group_stats.csv')
